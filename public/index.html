@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>J Sensor Hub — Edición Google Pixel (droid VM / J9.7)</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="j-logo" title="J Programming Language (jsoftware.com)">J</div>
+      <div>
+        <h1>
+          J Sensor Hub
+          <span class="badge-version" id="j-engine-badge">J9.7 ARM64</span>
+          <span class="badge-version" style="border-color:#10b981;color:#6ee7b7">Google Pixel • droid VM</span>
+        </h1>
+        <p class="subtitle">Control de Sensores en J para Android 16 Linux Terminal (Crosvm / Google Tensor G4) + Sensores Físicos del Pixel</p>
+      </div>
+    </div>
+
+    <div class="topbar-controls">
+      <div class="status-pill" id="conn-status">
+        <span class="dot online" id="conn-dot"></span>
+        <span id="conn-text">Conectado a J</span>
+      </div>
+      <div class="rtc-box" title="Reloj Hardware RTC (/sys/class/rtc/rtc0)">
+        <span class="rtc-label">RTC:</span>
+        <span id="rtc-clock">--:--:--</span>
+      </div>
+      <label class="poll-select-wrap">
+        <span>Muestreo:</span>
+        <select id="poll-interval-select">
+          <option value="250">250 ms (4 Hz)</option>
+          <option value="500">500 ms (2 Hz)</option>
+          <option value="1000" selected>1000 ms (1 Hz)</option>
+          <option value="2000">2000 ms (0.5 Hz)</option>
+        </select>
+      </label>
+      <button class="btn btn-warn" id="btn-spike" title="Inyectar pico de prueba en los arreglos de J">⚡ Inyectar Pico</button>
+      <button class="btn btn-secondary" id="btn-reset" title="Reiniciar buffers históricos en J">↺ Calibrar</button>
+      <button class="btn btn-primary" id="btn-pause">⏸ Pausar</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Banner de Resumen Matricial en J + Info Pixel -->
+    <section class="matrix-banner">
+      <div class="matrix-info">
+        <div class="matrix-title">
+          <span class="code-tag">sensors_mat</span>
+          <h2>Álgebra de Arreglos en J sobre Google Tensor G4 + Sensores del Pixel</h2>
+        </div>
+        <p>
+          Ejecutándose nativamente en <code>j64arm</code> dentro de la VM Linux de tu <strong>Google Pixel</strong>.
+          Estadísticas vectoriales en tiempo real: media tácita <code>+/ % #</code>, extremos <code>&lt;./ &gt;./</code>, media móvil <code>x (+/ % #)\ y</code> y regresión matricial <code>%.</code>.
+        </p>
+      </div>
+      <div class="matrix-kpis">
+        <div class="kpi-box">
+          <span class="kpi-label">Tensor J (<code>$ sensors_mat</code>)</span>
+          <span class="kpi-val mono" id="kpi-shape">8 × 20</span>
+        </div>
+        <div class="kpi-box">
+          <span class="kpi-label">Ciclo (<code>TICK_COUNT</code>)</span>
+          <span class="kpi-val mono" id="kpi-tick">0</span>
+        </div>
+        <div class="kpi-box">
+          <span class="kpi-label">Uptime VM (<code>/proc/uptime</code>)</span>
+          <span class="kpi-val mono" id="kpi-uptime">0s</span>
+        </div>
+        <div class="kpi-box" id="kpi-alert-box">
+          <span class="kpi-label">Alertas (<code>+/ alerts_mask</code>)</span>
+          <span class="kpi-val mono" id="kpi-alerts">0</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Panel de Actuadores (VM + Hardware Físico del Google Pixel) -->
+    <section class="section-block">
+      <div class="section-header">
+        <h2>🎛️ Actuadores del Pixel, Reglas de Umbral y Sintetizador Matemático J</h2>
+        <span class="section-sub">Controla LEDs lógicos, Motor Háptico del Pixel (<code>navigator.vibrate</code>), Pantalla Activa (<code>WakeLock</code>), Sirena WebAudio y generador J</span>
+      </div>
+
+      <div class="actuators-grid">
+        <div class="actuator-card">
+          <h3>Salidas, Háptica Pixel y Alarmas</h3>
+          <div class="led-strip">
+            <button class="led-btn" id="act-led1" data-id="led1">
+              <span class="led-bulb green"></span>
+              <span>LED 1 (VM)</span>
+            </button>
+            <button class="led-btn" id="act-led2" data-id="led2">
+              <span class="led-bulb cyan"></span>
+              <span>LED 2 (Stream)</span>
+            </button>
+            <button class="led-btn" id="act-led3" data-id="led3">
+              <span class="led-bulb red"></span>
+              <span>LED 3 (Alerta)</span>
+            </button>
+          </div>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+            <button class="btn btn-secondary" id="btn-test-haptic" style="flex:1">📳 Probar Vibración Pixel</button>
+            <button class="btn btn-secondary" id="btn-wakelock" style="flex:1">🔆 Mantener Pantalla Activa</button>
+          </div>
+          <div class="toggle-row">
+            <label class="switch-label">
+              <input type="checkbox" id="act-auto-cool" checked />
+              <span>Activar LED 3 automáticamente si <code>cur_vec &gt; THRESHOLDS</code></span>
+            </label>
+            <label class="switch-label">
+              <input type="checkbox" id="act-haptic" checked />
+              <span>Vibración Háptica del Pixel al superar umbral crítico</span>
+            </label>
+            <label class="switch-label">
+              <input type="checkbox" id="act-alarm" />
+              <span>Sirena Acústica WebAudio en el altavoz del Pixel</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="actuator-card">
+          <h3>Generador Matemático de Señal en J (<code>compute_synth</code>)</h3>
+          <div class="synth-controls">
+            <div class="control-group">
+              <label>Modo de Función J:</label>
+              <select id="synth-mode">
+                <option value="0">Armónica Sinusoidal (1 o. x + 2 o. 2.7x)</option>
+                <option value="1">Ruido Estocástico Uniforme (? 51)</option>
+                <option value="2">Pulso de Sobrecarga / Anomalía (+45)</option>
+              </select>
+            </div>
+            <div class="control-group">
+              <label>Ganancia (<code>SYNTH_GAIN</code>): <strong id="synth-gain-val">1.0</strong>×</label>
+              <input type="range" id="synth-gain" min="0.2" max="2.5" step="0.1" value="1.0" />
+            </div>
+            <div class="control-group">
+              <label>Nivel Base (<code>SYNTH_OFFSET</code>): <strong id="synth-offset-val">50</strong>%</label>
+              <input type="range" id="synth-offset" min="10" max="90" step="1" value="50" />
+            </div>
+          </div>
+        </div>
+
+        <div class="actuator-card">
+          <h3>Hardware Detectado en Google Pixel VM (<code>/sys</code> &amp; <code>/proc</code>)</h3>
+          <ul class="hw-list" id="hw-peripherals-list">
+            <li>Cargando inventario de hardware del Pixel desde J...</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Sensores Físicos del Google Pixel (Chrome Android -> Motor J) -->
+    <section class="section-block">
+      <div class="section-header">
+        <div>
+          <h2>📱 Sensores Físicos del Google Pixel (Web Hardware APIs → Motor J)</h2>
+          <span class="section-sub">Acelerómetro 3D, Giroscopio, Brújula, Presión Táctil OLED, Micrófono, Batería y Red enviados en vivo a J</span>
+        </div>
+        <div class="client-btn-group">
+          <button class="btn btn-accent" id="btn-start-hw">📡 Conectar Sensores Físicos del Pixel (IMU / Mic / Touch / Batería)</button>
+        </div>
+      </div>
+
+      <div class="sensors-grid two-col">
+        <!-- Sensor 6: IMU Acelerómetro + Giroscopio + Touch del Pixel -->
+        <article class="sensor-card" id="card-imu">
+          <div class="sensor-top">
+            <div>
+              <span class="sensor-tag">SENSOR #6 • PIXEL IMU 6-DOF &amp; OLED TOUCH (<code>%: +/ *: x,y,z</code>)</span>
+              <h3>Acelerómetro, Giroscopio y Presión Táctil</h3>
+            </div>
+            <div class="sensor-right-head">
+              <span class="sensor-reading" id="val-imu">9.81 m/s²</span>
+              <label class="mini-switch">
+                <input type="checkbox" class="sensor-enable" data-idx="6" checked />
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+          <div class="canvas-wrap">
+            <canvas id="chart-imu" width="420" height="110"></canvas>
+          </div>
+          <div class="sub-metrics" id="imu-details"></div>
+          <div class="imu-controls">
+            <div class="imu-slider-row">
+              <span>Accel X: <b id="lbl-ax">0.0</b></span>
+              <input type="range" id="sim-ax" min="-20" max="20" step="0.2" value="0" />
+              <span>Accel Y: <b id="lbl-ay">0.0</b></span>
+              <input type="range" id="sim-ay" min="-20" max="20" step="0.2" value="0" />
+              <span>Accel Z: <b id="lbl-az">9.8</b></span>
+              <input type="range" id="sim-az" min="-20" max="20" step="0.2" value="9.8" />
+            </div>
+          </div>
+          <div class="j-stats-bar" id="stats-imu"></div>
+          <div class="threshold-bar">
+            <label>Umbral Sacudida (m/s²): <strong id="th-lbl-6">15</strong></label>
+            <input type="range" class="threshold-slider" data-idx="6" min="10" max="35" step="0.5" value="15" />
+          </div>
+        </article>
+
+        <!-- Sensor 7: Ambiental del Pixel (Micrófono, Batería, Luz, Red, Puntero) -->
+        <article class="sensor-card" id="card-env">
+          <div class="sensor-top">
+            <div>
+              <span class="sensor-tag">SENSOR #7 • PIXEL ACÚSTICA, BATERÍA Y LUZ</span>
+              <h3>Micrófono (dB), Batería Pixel y Entorno</h3>
+            </div>
+            <div class="sensor-right-head">
+              <span class="sensor-reading" id="val-env">30.0 dB</span>
+              <label class="mini-switch">
+                <input type="checkbox" class="sensor-enable" data-idx="7" checked />
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+          <div class="canvas-wrap">
+            <canvas id="chart-env" width="420" height="110"></canvas>
+          </div>
+          <div class="sub-metrics" id="env-details"></div>
+          <div class="imu-controls">
+            <div class="imu-slider-row">
+              <span>Nivel Ruido (dB): <b id="lbl-mic">30</b></span>
+              <input type="range" id="sim-mic" min="15" max="100" step="1" value="30" />
+              <span>Luz (lux): <b id="lbl-lux">250</b></span>
+              <input type="range" id="sim-lux" min="0" max="2000" step="10" value="250" />
+            </div>
+          </div>
+          <div class="j-stats-bar" id="stats-env"></div>
+          <div class="threshold-bar">
+            <label>Umbral Acústico (dB): <strong id="th-lbl-7">75</strong></label>
+            <input type="range" class="threshold-slider" data-idx="7" min="40" max="95" step="1" value="75" />
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- Grid Principal de Sensores del Kernel Android 16 / VM Linux en el Pixel -->
+    <section class="section-block">
+      <div class="section-header">
+        <h2>🖥️ Sensores Internos de la VM Linux del Pixel (Nativos en J)</h2>
+        <span class="section-sub">Lectura directa por J de la topología Google Tensor G4, RAM/ZRAM, Presión PSI y Red Virtio <code>enp0s14</code></span>
+      </div>
+
+      <div class="sensors-grid">
+        <!-- Sensor 0: CPU Google Tensor -->
+        <article class="sensor-card" id="card-cpu">
+          <div class="sensor-top">
+            <div>
+              <span class="sensor-tag">SENSOR #0 • GOOGLE TENSOR G4 (1+3+4)</span>
+              <h3>CPU Tri-Cluster (A520 / A720 / X4)</h3>
+            </div>
+            <div class="sensor-right-head">
+              <span class="sensor-reading" id="val-cpu">0.0%</span>
+              <label class="mini-switch" title="Activar/Pausar captura de este sensor en J">
+                <input type="checkbox" class="sensor-enable" data-idx="0" checked />
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+          <div class="canvas-wrap">
+            <canvas id="chart-cpu" width="420" height="120"></canvas>
+          </div>
+          <div class="sub-metrics" id="cpu-clusters-pills"></div>
+          <div class="cores-grid" id="cpu-cores-bars"></div>
+          <div class="j-stats-bar" id="stats-cpu"></div>
+          <div class="threshold-bar">
+            <label>Umbral Alerta: <strong id="th-lbl-0">80</strong>%</label>
+            <input type="range" class="threshold-slider" data-idx="0" min="5" max="100" value="80" />
+          </div>
+        </article>
+
+        <!-- Sensor 1: Memoria + ZRAM -->
+        <article class="sensor-card" id="card-memory">
+          <div class="sensor-top">
+            <div>
+              <span class="sensor-tag">SENSOR #1 • /proc/meminfo &amp; ZRAM0</span>
+              <h3>Memoria RAM y Swap Comprimido</h3>
+            </div>
+            <div class="sensor-right-head">
+              <span class="sensor-reading" id="val-memory">0.0%</span>
+              <label class="mini-switch">
+                <input type="checkbox" class="sensor-enable" data-idx="1" checked />
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+          <div class="canvas-wrap">
+            <canvas id="chart-memory" width="420" height="120"></canvas>
+          </div>
+          <div class="sub-metrics" id="mem-details"></div>
+          <div class="j-stats-bar" id="stats-memory"></div>
+          <div class="threshold-bar">
+            <label>Umbral Alerta: <strong id="th-lbl-1">85</strong>%</label>
+            <input type="range" class="threshold-slider" data-idx="1" min="10" max="98" value="85" />
+          </div>
+        </article>
+
+        <!-- Sensor 2: PSI Pressure -->
+        <article class="sensor-card" id="card-psi">
+          <div class="sensor-top">
+            <div>
+              <span class="sensor-tag">SENSOR #2 • /proc/pressure/* (ANDROID 16)</span>
+              <h3>Presión del Kernel (PSI Stall)</h3>
+            </div>
+            <div class="sensor-right-head">
+              <span class="sensor-reading" id="val-psi">0.00%</span>
+              <label class="mini-switch">
+                <input type="checkbox" class="sensor-enable" data-idx="2" checked />
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+          <div class="canvas-wrap">
+            <canvas id="chart-psi" width="420" height="120"></canvas>
+          </div>
+          <div class="sub-metrics" id="psi-details"></div>
+          <div class="j-stats-bar" id="stats-psi"></div>
+          <div class="threshold-bar">
+            <label>Umbral Alerta: <strong id="th-lbl-2">5</strong>%</label>
+            <input type="range" class="threshold-slider" data-idx="2" min="0.5" max="50" step="0.5" value="5" />
+          </div>
+        </article>
+
+        <!-- Sensor 4: Red Virtio enp0s14 -->
+        <article class="sensor-card" id="card-net">
+          <div class="sensor-top">
+            <div>
+              <span class="sensor-tag">SENSOR #4 • /sys/class/net/enp0s14</span>
+              <h3>Red Virtio Pixel (RX/TX KB/s)</h3>
+            </div>
+            <div class="sensor-right-head">
+              <span class="sensor-reading" id="val-net">0.0 KB/s</span>
+              <label class="mini-switch">
+                <input type="checkbox" class="sensor-enable" data-idx="4" checked />
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+          <div class="canvas-wrap">
+            <canvas id="chart-net" width="420" height="120"></canvas>
+          </div>
+          <div class="sub-metrics" id="net-details"></div>
+          <div class="j-stats-bar" id="stats-net"></div>
+          <div class="threshold-bar">
+            <label>Umbral Tráfico (KB/s): <strong id="th-lbl-4">500</strong></label>
+            <input type="range" class="threshold-slider" data-idx="4" min="10" max="2000" step="10" value="500" />
+          </div>
+        </article>
+
+        <!-- Sensor 5: Sintético + Disco #3 -->
+        <article class="sensor-card" id="card-synth">
+          <div class="sensor-top">
+            <div>
+              <span class="sensor-tag">SENSOR #5 • MOTOR MATEMÁTICO J &amp; DISCO VDA</span>
+              <h3>Señal Sintética J y Block I/O</h3>
+            </div>
+            <div class="sensor-right-head">
+              <span class="sensor-reading" id="val-synth">50.0</span>
+              <label class="mini-switch">
+                <input type="checkbox" class="sensor-enable" data-idx="5" checked />
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+          <div class="canvas-wrap">
+            <canvas id="chart-synth" width="420" height="120"></canvas>
+          </div>
+          <div class="sub-metrics" id="disk-details"></div>
+          <div class="j-stats-bar" id="stats-synth"></div>
+          <div class="threshold-bar">
+            <label>Umbral Alerta: <strong id="th-lbl-5">85</strong></label>
+            <input type="range" class="threshold-slider" data-idx="5" min="20" max="100" value="85" />
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- Consola Interactiva J (J REPL sobre Sensores) -->
+    <section class="section-block j-repl-section">
+      <div class="section-header">
+        <div>
+          <h2>🧮 Laboratorio Interactivo J (Álgebra de Arreglos en Vivo)</h2>
+          <span class="section-sub">Ejecuta código <strong>J</strong> directamente sobre los tensores de sensores de tu Pixel (<code>cpu_hist</code>, <code>mem_hist</code>, <code>net_hist</code>, <code>accel_hist</code>, <code>mic_hist</code>, <code>sensors_mat</code>)</span>
+        </div>
+      </div>
+
+      <div class="preset-chips">
+        <span class="chip-label">Expresiones J rápidas:</span>
+        <button class="chip" data-expr="(+/ % #) cpu_hist">Media CPU: <code>(+/ % #) cpu_hist</code></button>
+        <button class="chip" data-expr="(>./ - <./) accel_hist">Rango IMU Pixel: <code>(&gt;./ - &lt;./) accel_hist</code></button>
+        <button class="chip" data-expr="5 (+/ % #)\ cpu_hist">Media Móvil (5): <code>5 (+/ % #)\ cpu_hist</code></button>
+        <button class="chip" data-expr="cpu_hist %. 1 ,. i. # cpu_hist">Regresión Lineal: <code>cpu_hist %. 1 ,. i. # cpu_hist</code></button>
+        <button class="chip" data-expr="(+/ % #)&quot;1 sensors_mat">Medias de los 8 Sensores: <code>(+/ % #)"1 sensors_mat</code></button>
+        <button class="chip" data-expr="$ sensors_mat">Forma Matriz: <code>$ sensors_mat</code></button>
+        <button class="chip" data-expr="round2 |: _6 {.&quot;1 sensors_mat">Transpuesta (últ. 6): <code>round2 |: _6 {."1 sensors_mat</code></button>
+        <button class="chip" data-expr="cur_vec ,: THRESHOLDS">Lecturas vs Umbrales: <code>cur_vec ,: THRESHOLDS</code></button>
+      </div>
+
+      <form class="repl-form" id="j-repl-form">
+        <span class="repl-prompt">   </span>
+        <input type="text" id="j-expr-input" value="(+/ % #)&quot;1 sensors_mat" placeholder="Escribe una expresión en lenguaje J..." autocomplete="off" />
+        <button type="submit" class="btn btn-primary">Ejecutar en J (↵)</button>
+      </form>
+
+      <div class="repl-output-wrap">
+        <div class="repl-meta">
+          <span>Expresión: <code id="repl-last-expr">-</code></span>
+          <span>Forma (<code>$</code>): <code id="repl-shape">-</code></span>
+        </div>
+        <pre class="repl-output" id="repl-result">Presiona "Ejecutar en J" o elige una expresión rápida para evaluar sobre los arreglos de sensores en vivo.</pre>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>Impulsado por <strong>J9.7 ARM64</strong> (<a href="https://www.jsoftware.com/#/" target="_blank" rel="noopener">jsoftware.com</a>) • Optimizado para Google Pixel Linux Terminal (<code>droid</code> / Android 16 AVF)</p>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>
